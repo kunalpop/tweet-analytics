@@ -1,6 +1,6 @@
 """
-Retweet Prediction API - Production Ready for Render.com
-With Inference Logging for Monitoring
+Virality Prediction API - Hybrid Ensemble (Embedding + NMF)
+Production Ready with Monitoring + Observability
 """
 
 from fastapi import FastAPI, HTTPException
@@ -9,15 +9,11 @@ from typing import List
 import joblib
 import json
 import numpy as np
-import pandas as pd
 from datetime import datetime
 import os
 from pathlib import Path
 import logging
-
 import re
-
-from torch import embedding
 
 # ============================================================
 # LOGGING SETUP
@@ -46,63 +42,46 @@ prediction_logger.setLevel(logging.INFO)
 # ============================================================
 app = FastAPI(
     title="Virality Prediction API",
-    description="Ensemble retweet count prediction using XGBoost + Random Forest Pipelines",
-    version="1.0.0"
+    description="Hybrid ensemble (GB + RF + NMF) for predicting retweets and likes",
+    version="2.0.0"
 )
 
 # ============================================================
-# LOAD PIPELINES, EMBEDDER & METADATA
+# LOAD MODELS
 # ============================================================
 MODEL_DIR = Path("models")
 
 try:
     gb_pipeline = joblib.load(MODEL_DIR / "gb_pipeline_model.pkl")
     rf_pipeline = joblib.load(MODEL_DIR / "rf_pipeline_model.pkl")
+    rt_pipeline = joblib.load(MODEL_DIR / "retweet_pipeline.pkl")
+    lk_pipeline = joblib.load(MODEL_DIR / "likes_pipeline.pkl")
     embedder    = joblib.load(MODEL_DIR / "embedder.pkl")
-
-    with open(MODEL_DIR / "model_metadata.json") as f:
-        metadata = json.load(f)
 
     with open(MODEL_DIR / "feature_stats.json") as f:
         feature_stats = json.load(f)
 
-    # Embedding drift stats loaded from feature_stats.json
-    embedding_mean = np.array(feature_stats["embedding_mean"])  # shape: (embedding_dim,)
-    embedding_std  = np.array(feature_stats["embedding_std"])   # shape: (embedding_dim,)
+    embedding_mean = np.array(feature_stats["embedding_mean"])
+    embedding_std  = np.array(feature_stats["embedding_std"])
 
-    logger.info("Models and embedder loaded successfully.")
+    logger.info("All models loaded successfully.")
 
 except Exception as e:
-    logger.error(f"Error loading models: {e}")
+    logger.error(f"Model loading failed: {e}")
     raise
-
 
 # ============================================================
 # REQUEST / RESPONSE MODELS
 # ============================================================
 class TweetInput(BaseModel):
-    text: str = Field(
-        ...,
-        min_length=1,
-        max_length=280,
-        description="Raw tweet text (up to 280 characters)",
-        examples=["Just launched our new product! Check it out 🚀"]
-    )
+    text: str = Field(..., min_length=1, max_length=280)
 
     @field_validator('text')
-    @classmethod
     def validate_text(cls, v):
         v = v.strip()
         if not v:
-            raise ValueError('Tweet text cannot be empty or whitespace.')
+            raise ValueError("Tweet text cannot be empty.")
         return v
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "text": "Just launched our new product! Check it out 🚀"
-            }
-        }
 
 
 class PredictionResponse(BaseModel):
@@ -110,71 +89,59 @@ class PredictionResponse(BaseModel):
     timestamp: str
     xgboost_prediction: float
     random_forest_prediction: float
+    nmf_prediction: float
     ensemble_prediction: float
+    predicted_likes: float
     drift_warnings: List[str]
 
-
 # ============================================================
-# HELPER FUNCTIONS
+# HELPERS
 # ============================================================
-def embed(text: str) -> np.ndarray:
-    """Embed tweet text into a feature vector."""
-    embedding = embedder.encode([text], normalize_embeddings=True, convert_to_numpy=True)[0].reshape(1, -1)     # shape: (1, embedding_dim)
-    return embedding                                                                                                # shape: (embedding_dim,)
+def clean_text(text):
+    text = text.lower()
+    text = re.sub(r'http\S+|www\S+', '', text)
+    text = re.sub(r'@\w+', '', text)
+    text = re.sub(r'#(\w+)', r'\1', text)
+    text = re.sub(r'^rt\s+', '', text, flags=re.MULTILINE)
+    text = re.sub(r'[^a-zA-Z0-9\s]', '', text)
+    return re.sub(r'\s+', ' ', text).strip()
 
 
-def check_embedding_drift(embedding: np.ndarray) -> list:
-    """
-    Check if the embedding is an outlier relative to training embeddings.
-    Flags any dimension where the value exceeds mean ± 3*std, using
-    per-dimension mean and std vectors from training.
+def embed(text):
+    return embedder.encode([text], normalize_embeddings=True, convert_to_numpy=True)
 
-    Supports embedding shape (1, embedding_dim) or (embedding_dim,).
-    """
-    warnings = []
 
-    # Flatten if input is 2D (1, embedding_dim)
-    if embedding.ndim == 2 and embedding.shape[0] == 1:
-        embedding = embedding.flatten()  # shape: (embedding_dim,)
+def check_embedding_drift(embedding):
+    embedding = embedding.flatten()
+    deviations = np.abs(embedding - embedding_mean)
+    threshold = 3 * embedding_std
 
-    # Calculate deviations
-    deviations   = np.abs(embedding - embedding_mean)   # shape: (embedding_dim,)
-    threshold    = 3.0 * embedding_std                 # shape: (embedding_dim,)
-    drifted_dims = np.where(deviations > threshold)[0] # indices of flagged dims
+    drifted = np.where(deviations > threshold)[0]
 
-    if len(drifted_dims) > 0:
-        worst_idx = drifted_dims[np.argmax(deviations[drifted_dims])]
-        warnings.append(
-            f"Embedding drift detected: {len(drifted_dims)} dimension(s) exceed 3σ. "
-            f"Worst — dim {worst_idx}: value={embedding[worst_idx]:.4f}, "
-            f"mean={embedding_mean[worst_idx]:.4f}, "
-            f"threshold=±{threshold[worst_idx]:.4f}"
-        )
+    if len(drifted) > 0:
+        return [f"{len(drifted)} embedding dims drifted"]
 
-    return warnings
+    return []
 
 # ============================================================
 # GLOBAL STATE
 # ============================================================
 request_counter = 0
 
-
 # ============================================================
 # API ENDPOINTS
 # ============================================================
 @app.get("/")
 def root():
-    """Health check."""
     return {
         "status": "healthy",
-        "message": "Retweet Prediction API is running",
-        "models": ["XGBoost", "Random Forest"],
+        "message": "Virality Prediction API is running",
+        "models": ["XGBoost", "Random Forest", "NMF + Linear"],
     }
 
 
 @app.get("/health")
 def health():
-    """Detailed health check."""
     return {
         "status": "healthy",
         "models_loaded": True,
@@ -184,75 +151,82 @@ def health():
 
 @app.get("/model-info")
 def model_info():
-    """Get model metadata."""
     return {
-        "input"            : "raw tweet text (embedded internally)",
-        "embedding_dim"    : feature_stats["embedding_dim"],
-        "pipeline_steps"   : metadata.get("pipeline_steps", []),
-        "training_samples" : metadata.get("training_samples"),
-        "test_samples"     : metadata.get("test_samples"),
+        "input": "raw tweet text",
+        "models": {
+            "retweet_models": [
+                "Gradient Boosting (embedding-based)",
+                "Random Forest (embedding-based)",
+                "NMF + Linear Regression (text-based)"
+            ],
+            "likes_model": "NMF + Linear Regression"
+        },
+        "ensemble_method": "simple average of 3 models",
+        "embedding_dim": len(embedding_mean),
     }
 
 
-def clean_text(text):
-    text = text.lower()
-    text = re.sub(r'http\S+|www\S+', '', text)            # remove URLs
-    text = re.sub(r'@\w+', '', text)                       # remove mentions
-    text = re.sub(r'#(\w+)', r'\1', text)                  # strip # but keep word
-    text = re.sub(r'^rt\s+', '', text, flags=re.MULTILINE) # remove RT prefix
-    text = re.sub(r'[^a-zA-Z0-9\s]', '', text)            # remove special chars
-    text = re.sub(r'\s+', ' ', text).strip()               # collapse whitespace
-    return text
-
 @app.post("/predict", response_model=PredictionResponse)
 def predict(tweet: TweetInput):
-    """Predict retweet count for a tweet."""
     global request_counter
     request_counter += 1
+
     prediction_id = f"twt_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{request_counter:06d}"
 
     try:
-        # Embed the tweet text
-        cleaned_text = clean_text(tweet.text)
-        X = embed(cleaned_text)           # shape: (embedding_dim,)
+        text = clean_text(tweet.text)
 
-        print(X)
+        # =========================
+        # Embedding-based models
+        # =========================
+        X_embed = embed(text)
 
-        # Drift detection on embedding
-        drift_warnings = check_embedding_drift(X)
+        gb_pred = gb_pipeline.predict(X_embed)[0]
+        rf_pred = rf_pipeline.predict(X_embed)[0]
 
-        # Predict retweet counts
-        gb_pred = gb_pipeline.predict(X)[0]
-        rf_pred  = rf_pipeline.predict(X)[0]
-        ensemble_pred = (gb_pred + rf_pred) / 2
+        # =========================
+        # NMF-based pipelines
+        # =========================
+        nmf_pred = rt_pipeline.predict([text])[0]
+        lk_pred  = lk_pipeline.predict([text])[0]
 
-        # Clamp to non-negative (retweet counts can't be negative)
-        gb_pred      = int(max(0.0, np.expm1(gb_pred)))
-        rf_pred       = int(max(0.0, np.expm1(rf_pred)))
-        ensemble_pred = int(max(0.0, np.expm1(ensemble_pred)))
+              # =========================
+        # Post-processing
+        # =========================
+        gb_pred       = int(max(0, np.expm1(gb_pred)))
+        rf_pred       = int(max(0, np.expm1(rf_pred)))
+        nmf_pred = int(max(0, nmf_pred))
+        lk_pred  = int(max(0, lk_pred))
 
-        # Log prediction
+        # =========================
+        # Ensemble
+        # =========================
+        ensemble_pred = int((gb_pred + rf_pred + nmf_pred) / 3)
+
+        drift_warnings = check_embedding_drift(X_embed)
+
+        # =========================
+        # Logging
+        # =========================
         log_entry = {
             "timestamp": datetime.utcnow().isoformat(),
             "prediction_id": prediction_id,
-            "input_text": tweet.text,
-            "predictions": {
-                "xgboost":       {"retweets": gb_pred},
-                "random_forest": {"retweets": rf_pred},
-                "ensemble":      {"retweets": ensemble_pred},
-            },
-            "has_drift": len(drift_warnings) > 0,
-            "drift_warnings": drift_warnings,
+            "text": tweet.text,
+            "retweets": ensemble_pred,
+            "likes": lk_pred,
+            "drift": drift_warnings
         }
         prediction_logger.info(json.dumps(log_entry))
-        logger.info(f"[{prediction_id}] Predicted retweets: {ensemble_pred:.1f}")
+        logger.info(f"[{prediction_id}] Retweets={ensemble_pred}, Likes={lk_pred}")
 
         return PredictionResponse(
             prediction_id=prediction_id,
             timestamp=datetime.utcnow().isoformat(),
-            xgboost_prediction=round(gb_pred, 2),
-            random_forest_prediction=round(rf_pred, 2),
-            ensemble_prediction=round(ensemble_pred, 2),
+            xgboost_prediction=gb_pred,
+            random_forest_prediction=rf_pred,
+            nmf_prediction=nmf_pred,
+            ensemble_prediction=ensemble_pred,
+            predicted_likes=lk_pred,
             drift_warnings=drift_warnings,
         )
 
@@ -263,36 +237,71 @@ def predict(tweet: TweetInput):
 
 @app.get("/logs/summary")
 def get_log_summary():
-    """Get summary of logged predictions for monitoring."""
     log_file = LOG_DIR / "predictions.jsonl"
 
     if not log_file.exists():
         return {
             "total_predictions": 0,
-            "avg_predicted_retweets": 0,
-            "predictions_with_drift": 0,
+            "avg_retweets": 0,
+            "avg_likes": 0,
             "drift_rate": 0,
-            "message": "No predictions logged yet"
+            "message": "No logs yet"
         }
 
-    total        = 0
-    retweet_sum  = 0.0
-    drift_count  = 0
+    total = 0
+    retweet_sum = 0
+    likes_sum = 0
+    drift_count = 0
 
     with open(log_file) as f:
         for line in f:
             try:
                 entry = json.loads(line)
-                total       += 1
-                retweet_sum += entry["predictions"]["ensemble"]["retweets"]
-                if entry.get("has_drift", False):
+                total += 1
+                retweet_sum += entry.get("retweets", 0)
+                likes_sum += entry.get("likes", 0)
+                if entry.get("drift"):
                     drift_count += 1
             except:
                 continue
 
     return {
-        "total_predictions":       total,
-        "avg_predicted_retweets":  round(retweet_sum / total, 2) if total > 0 else 0,
-        "predictions_with_drift":  drift_count,
-        "drift_rate":              round(drift_count / total * 100, 2) if total > 0 else 0,
+        "total_predictions": total,
+        "avg_retweets": round(retweet_sum / total, 2) if total else 0,
+        "avg_likes": round(likes_sum / total, 2) if total else 0,
+        "drift_rate": round((drift_count / total) * 100, 2) if total else 0,
     }
+
+
+@app.get("/logs/recent")
+def get_recent_logs(limit: int = 10):
+    log_file = LOG_DIR / "predictions.jsonl"
+
+    if not log_file.exists():
+        return {"logs": []}
+
+    logs = []
+    with open(log_file) as f:
+        lines = f.readlines()[-limit:]
+
+    for line in lines:
+        try:
+            logs.append(json.loads(line))
+        except:
+            continue
+
+    return {"logs": logs}
+
+
+# ============================================================
+# MAIN
+# ============================================================
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 8000)),
+        reload=True
+    )

@@ -2,11 +2,11 @@
   "virality_threshold": 373324199679900148487366050316288,
   "virality_percentile": 75,
   "embed_model": "sentence-transformers/paraphrase-MiniLM-L3-v2",
-  "trained_on_n_samples": 7927,
+  "trained_on_n_samples": 7980,
   "retweet_stats": {
     "min": 0,
     "max": 26881171418161356094253400435962903554686976,
-    "mean": 385399031992120537563694646158167927422976,
+    "mean": 402867935356087966952709101058064279142400,
     "median": 1907346572495099527168,
     "p75": 373324199679900148487366050316288,
     "p95": 181123908288902334832971246827918212464640
@@ -17,6 +17,6 @@
     "Embedding",
     "Regression"
   ],
-  "training_samples": 7927,
-  "test_samples": 1982
+  "training_samples": 7980,
+  "test_samples": 1996
 }
