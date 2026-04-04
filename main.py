@@ -267,8 +267,8 @@ def get_log_summary():
 
     return {
         "total_predictions": total,
-        "avg_retweets": round(retweet_sum / total, 2) if total else 0,
-        "avg_likes": round(likes_sum / total, 2) if total else 0,
+        "avg_retweets": round(retweet_sum / total, 0) if total else 0,
+        "avg_likes": round(likes_sum / total, 0) if total else 0,
         "drift_rate": round((drift_count / total) * 100, 2) if total else 0,
     }
 
