@@ -210,7 +210,7 @@ with tabs[0]:
         predict_btn = st.button("Predict")
     with col_right:
         st.subheader("Settings")
-        viral_threshold = st.slider("Viral threshold", 0, 100, 40, step=1)
+        viral_threshold = st.slider("Viral threshold", 0, 100, 60, step=1)
         api_base = st.text_input("API base URL (FastAPI)", value="http://localhost:8000")
         use_local_model = st.checkbox("Force local model (ignore API)", value=False)
         api_ok = False
@@ -452,6 +452,9 @@ with tabs[0]:
                         is_viral = [s >= viral_threshold for s in scores]
                         out_df = pd.DataFrame({"text": tweets, "virality_score": scores, "is_viral": is_viral})
                 out_df = out_df.reset_index(drop=True)
+                if "virality_score" in out_df.columns:
+                    out_df["virality_score"] = np.sqrt(out_df["virality_score"]) * 10
+                    out_df["virality_score"] = out_df["virality_score"].round(2)
                 if "is_viral" in out_df.columns:
                     out_df["is_viral"] = out_df["is_viral"].map({True: "✅", False: "❌", 1: "✅", 0: "❌"}).fillna(out_df["is_viral"])
                 st.subheader("Results")
