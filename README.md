@@ -294,7 +294,6 @@ MODEL_DIR=./models
 DATABASE_URL=postgresql://user:pass@localhost/db
 API_KEY_SECRET=your-secret-key
 ```
-
 ---
 
 ## 📊 Monitoring & Observability
@@ -356,10 +355,6 @@ grep "twt_20260405" logs/predictions.jsonl
 - **joblib** (1.4.2) - Model serialization
 - **umap-learn** (0.5.5) - Dimensionality reduction
 - **hdbscan** (0.8.33) - Clustering algorithm
-
-### Utilities
-- **requests** (2.32.3) - HTTP client
-- **tqdm** (4.66.4) - Progress bars
 ---
 
 **Last Updated:** April 5, 2026
@@ -367,5 +362,3 @@ grep "twt_20260405" logs/predictions.jsonl
 **Version:** 2.0.0
 
 ---
-
-Made with ❤️ by [Kunal Pop](https://github.com/kunalpop)
