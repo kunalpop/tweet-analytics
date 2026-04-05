@@ -1,99 +1,59 @@
-# Project Title: Tweet Analytics
 
-## Introduction
-This project analyzes tweets in a comprehensive manner using FastAPI.
+# Tweet Analytics - Virality Prediction API
 
-## System Architecture
-```
-        +-------------------+          +---------------------+
-        |   Client Requests  |  ----->  |  FastAPI Application  |
-        +-------------------+          +---------------------+
-                                            |       |
-                                            v       v
-                             +-----------------------+ 
-                             |  Database Connection   |
-                             +-----------------------+
-                             |                       |
-                             v                       v
-                      +------------+        +----------------+
-                      |   Database |<------|  External APIs  |
-                      +------------+        +----------------+
-```
-### Data Flow
-1. Client sends a request to the FastAPI application.
-2. FastAPI interacts with the database and external APIs.
-3. Responses are sent back to the client.
+A production-ready FastAPI application that predicts tweet virality using a hybrid ensemble model combining gradient boosting, random forests, and NMF-based text analysis.
 
-### Deployment Topology
-```
-                         +------------+   
-                         |   Client   |   
-                         +------+-----+   
-                                |         
-                                v         
-                   +------------+------------+
-                   |       Nginx Reverse      |   
-                   |          Proxy           |   
-                   +------------+------------+
-                                |         
-                +---------------+------------------+ 
-                |                Gunicorn          |
-                +---------------+------------------+ 
-                                |         
-                +---------------v------------------+ 
-                |             FastAPI             |
-                +---------------+------------------+ 
-                                |         
-                +---------------v------------------+ 
-                |         Database (PostgreSQL)   |
-                +---------------------------------+
-```
+## 🎯 Overview
 
-## FastAPI Deployment Instructions
-### Local Development
-1. **Install FastAPI**: Use `pip install fastapi` to install FastAPI.
-2. **Create a new application**: Create your FastAPI application.
-3. **Run the application**: Use `uvicorn main:app --reload` to start the server.
+Tweet Analytics predicts how many retweets and likes a tweet will receive using advanced machine learning techniques. The system combines three complementary prediction models:
 
-### Docker Containerization
-1. **Create a Dockerfile**: Define your Docker environment.
-2. **Build the image**: Run `docker build -t tweet-analytics .`
-3. **Run the container**: Use `docker run -d -p 8000:8000 tweet-analytics`
+- **Gradient Boosting (XGBoost)** - Embedding-based predictions
+- **Random Forest** - Embedding-based predictions  
+- **NMF + Linear Regression** - Text feature-based predictions
 
-### Gunicorn Production Setup
-1. **Install Gunicorn**: Use `pip install gunicorn` to install Gunicorn.
-2. **Start Gunicorn**: Run `gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000`
+The ensemble approach averages predictions from all three models for robust virality scoring.
 
-### Nginx Reverse Proxy
-1. **Install Nginx**: Use your package manager to install Nginx.
-2. **Configure Nginx**: Set up Nginx to reverse proxy to your Gunicorn server.
+## ✨ Features
 
-### Heroku Deployment
-1. **Install Heroku CLI**: Use `npm install -g heroku` to install the Heroku CLI.
-2. **Create a new app**: Run `heroku create`.
-3. **Deploy**: Use `git push heroku main` to deploy.
+- 🚀 **FastAPI** - Modern, fast web framework with automatic OpenAPI documentation
+- 🤖 **Hybrid Ensemble** - Combines embedding-based and text-based models
+- 📊 **Dual Predictions** - Predicts both retweet counts and likes
+- 📈 **Monitoring & Observability** - Built-in logging and drift detection
+- 🔍 **Embedding Drift Detection** - Monitors for out-of-distribution predictions
+- 📝 **Request Logging** - JSONL format predictions log for audit trails
+- ⚡ **Production Ready** - Includes deployment configurations
 
-### AWS Deployment Options
-- **ECS**: Use Amazon ECS for containerized deployment.
-- **Elastic Beanstalk**: Set up an Elastic Beanstalk environment for your application.
+## 📋 Prerequisites
 
-### Google Cloud Run
-Deploy the application on Google Cloud Run for serverless execution.
+- Python 3.11+
+- pip or conda package manager
+- FastAPI and dependencies (see requirements.txt)
 
-## Production Best Practices
-- **HTTPS**: Always use HTTPS for secure communications.
-- **Rate Limiting**: Implement rate limiting to protect against abuse.
-- **Structured Logging**: Use structured logging for better traceability.
-- **Environment Configuration**: Handle environment variables securely.
-- **Database Connection Pooling**: Use pooling to manage database connections efficiently.
+## 🛠️ Installation
 
-## Scaling Considerations
-- Assess the need to scale with increasing traffic.
-- Use load balancers and horizontal scaling strategies.
+### Option 1: Using pip
 
-## Performance Benchmarks
-| Metric                        | Value        |
-|-------------------------------|--------------|
-| Response Time (ms)           | < 100       |
-| Requests Per Second           | 1000        |
-| Max Concurrent Users          | 500         |
+```bash
+pip install -r requirements.txt
+
+## 📁 Project Structure
+tweet-analytics/
+├── main.py                      # FastAPI application with prediction endpoints
+├── requirements.txt             # Python package dependencies
+├── environment.yml              # Conda environment specification
+├── Procfile                     # Heroku deployment configuration
+├── models/                      # Trained ML models (pkl files)
+│   ├── gb_pipeline_model.pkl
+│   ├── rf_pipeline_model.pkl
+│   ├── retweet_pipeline.pkl
+│   ├── likes_pipeline.pkl
+│   ├── embedder.pkl
+│   └── feature_stats.json
+├── notebooks/                   # Jupyter notebooks for exploration
+├── data/                        # Training/reference data
+├── scripts/                     # Utility scripts
+├── db/                          # Database files
+├── logs/                        # Application logs
+│   ├── inference.log
+│   └── predictions.jsonl
+└── twitnalytics/               # Main package code
