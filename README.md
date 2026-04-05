@@ -55,32 +55,6 @@ cd tweet-analytics
 # Install dependencies
 pip install -r requirements.txt
 ```
-
-### Option 2: Using conda
-
-```bash
-# Clone the repository
-git clone https://github.com/kunalpop/tweet-analytics.git
-cd tweet-analytics
-
-# Create and activate environment
-conda env create -f environment.yml
-conda activate twit_analytics
-```
-
-### Option 3: Using Docker
-
-```bash
-# Build Docker image
-docker build -t tweet-analytics .
-
-# Run container
-docker run -d -p 8000:8000 \
-  -v $(pwd)/logs:/app/logs \
-  --name tweet-analytics \
-  tweet-analytics
-```
-
 ---
 
 ## 📁 Project Structure
