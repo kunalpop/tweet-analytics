@@ -337,7 +337,7 @@ grep "twt_20260405" logs/predictions.jsonl
 
 ## 🚀 Twit-Nalytics Streamlit Dashboard
 
-Twit-Nalytics is an interactive Streamlit-based analytics platform for exploring tweet data, performing topic modeling, and predicting tweet virality using machine learning.
+Twit-Nalytics is an interactive Streamlit-based analytics platform for exploring tweet data, performing topic modeling, and predicting tweet virality using machine learning. Some of the features of the dashboard are as follows. 
 
 - Data Loading – Import tweet data from SQLite databases
 - Overview Analytics – Visualize tweet trends and top hashtags
