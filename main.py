@@ -139,6 +139,10 @@ def root():
         "models": ["XGBoost", "Random Forest", "NMF + Linear"],
     }
 
+# Ignore socket.io 404 polling logs from Jupyter/WebSockets
+@app.get("/ws/socket.io/")
+def ignore_socket_io():
+    return {"message": "Ignored"}
 
 @app.get("/health")
 def health():
