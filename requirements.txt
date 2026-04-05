@@ -27,4 +27,4 @@ setuptools>=67.0.0
 wheel>=0.41.2
 
 # Python version
-python-3.11.16
+python-3.11
