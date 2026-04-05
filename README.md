@@ -348,24 +348,9 @@ Twit-Nalytics is an interactive Streamlit-based analytics platform for exploring
 
 ---
 ## 🏗️ Architecture
-        Text
-          |
-    --------------
-    |            |
- Text Embedder   TF-IDF
-    |            |
-  --------   ---------
-  |      |   |       |
-Random  Gradient  NMF
-Forest  Boosting   |
-Predictor Predictor Factorization
-   \       |      /
-    \      |     /
-     \     |    /
-      Ensemble Averaging
-             |
-          Retweets
-                 
+
+![Backend Architecture](architecture.png)
+
 ---
 ## 📦 Dependencies
 
