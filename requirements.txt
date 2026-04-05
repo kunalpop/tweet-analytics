@@ -11,7 +11,7 @@ joblib==1.4.2
 # NLP / embeddings
 sentence-transformers==2.7.0
 transformers==4.41.2
-torch==2.2.2
+torch==2.2.2+cpu
 
 # Topic modeling
 umap-learn==0.5.5
@@ -22,9 +22,6 @@ pydantic==2.7.4
 requests==2.32.3
 tqdm==4.66.4
 
-# Ensure wheels are used and no compilation
+# Build tools (avoid compilation issues)
 setuptools>=67.0.0
 wheel>=0.41.2
-
-# Python version
-python-3.11
