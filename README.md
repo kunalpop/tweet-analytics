@@ -335,7 +335,7 @@ grep "twt_20260405" logs/predictions.jsonl
 
 ---
 
-🚀 Twit-Nalytics Streamlit Dashboard
+## 🚀 Twit-Nalytics Streamlit Dashboard
 
 Twit-Nalytics is an interactive Streamlit-based analytics platform for exploring tweet data, performing topic modeling, and predicting tweet virality using machine learning.
 
