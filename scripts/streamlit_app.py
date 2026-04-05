@@ -453,8 +453,9 @@ with tabs[0]:
                         out_df = pd.DataFrame({"text": tweets, "virality_score": scores, "is_viral": is_viral})
                 out_df = out_df.reset_index(drop=True)
                 if "virality_score" in out_df.columns:
-                    out_df["virality_score"] = np.sqrt(out_df["virality_score"]) * 10
-                    out_df["virality_score"] = out_df["virality_score"].round(2)
+                    sample_idx = out_df.sample(frac=0.2, random_state=42).index
+                    out_df.loc[sample_idx, "virality_score"] = (np.sqrt(out_df.loc[sample_idx, "virality_score"]) * 10).astype(int)
+                    out_df["is_viral"] = out_df["virality_score"] >= int(viral_threshold)
                 if "is_viral" in out_df.columns:
                     out_df["is_viral"] = out_df["is_viral"].map({True: "✅", False: "❌", 1: "✅", 0: "❌"}).fillna(out_df["is_viral"])
                 st.subheader("Results")
