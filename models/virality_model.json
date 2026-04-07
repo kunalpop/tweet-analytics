@@ -1,0 +1,1 @@
+{"embed_model_name": "all-MiniLM-L6-v2", "model_type": "logreg", "use_topic_features": true, "topic_model_dir": "virality_topics_model"}

@@ -146,11 +146,10 @@ def save_model(bundle: Dict[str, Any], outdir: Path) -> None:
     joblib.dump(bundle, outdir / "virality_model.joblib")
     cfg = {"embed_model_name": bundle.get("embed_model_name", ""), "model_type": bundle.get("model_type", ""), "use_topic_features": bundle.get("use_topic_features", False)}
     if "topic_model" in bundle:
-        tdir = outdir / "virality_topics"
-        tdir.mkdir(parents=True, exist_ok=True)
+        tfile = outdir / "virality_topics_model"
         tm: BERTopic = bundle["topic_model"]
-        tm.save(tdir)
-        cfg["topic_model_dir"] = "virality_topics"
+        tm.save(str(tfile))
+        cfg["topic_model_dir"] = "virality_topics_model"
     (outdir / "virality_model.json").write_text(json.dumps(cfg))
 
 def load_model(path: Path) -> Optional[Dict[str, Any]]:
@@ -172,10 +171,11 @@ def predict_virality(
     X = build_features(texts, created_at, users, embed_model_name)
     if bundle.get("use_topic_features", False):
         # Try to load BERTopic model from disk based on config
-        topic_model_dir = (Path("models") / "virality_topics")
+        topic_model_file = (Path("models") / "virality_topics_model")
         try:
-            if topic_model_dir.exists():
-                tm = BERTopic.load(topic_model_dir)
+            if topic_model_file.exists():
+                from bertopic import BERTopic
+                tm = BERTopic.load(str(topic_model_file))
                 tfeats = _topic_features_with_model(texts, tm)
             else:
                 tfeats = np.zeros((len(texts), 2), dtype=np.float32)

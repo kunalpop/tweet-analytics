@@ -458,15 +458,37 @@ with tabs[0]:
                     out_df["is_viral"] = out_df["virality_score"] >= int(viral_threshold)
                 if "is_viral" in out_df.columns:
                     out_df["is_viral"] = out_df["is_viral"].map({True: "✅", False: "❌", 1: "✅", 0: "❌"}).fillna(out_df["is_viral"])
+                
                 st.subheader("Results")
-                st.dataframe(out_df, width="stretch")
+                
+                # Main dataframe without the drift and ensemble columns
+                display_cols = [c for c in out_df.columns if c not in ["drift", "ensemble"]]
+                st.dataframe(out_df[display_cols], width="stretch")
+
                 if 'raw_responses' in locals() and len(raw_responses) > 0:
-                    with st.expander("API responses"):
+                    with st.expander("🔌 View API Responses"):
                         for i, r in enumerate(raw_responses, start=1):
                             st.markdown(f"Response {i}")
                             try:
                                 st.json(r)
                             except Exception:
                                 st.write(r)
+                
+                # Viral tweets summary
+                if "is_viral" in out_df.columns:
+                    viral_tweets = out_df[out_df["is_viral"] == "✅"]
+                    viral_count = len(viral_tweets)
+                    st.success(f"🔥 Found **{viral_count}** potentially viral tweet{'s' if viral_count != 1 else ''} out of {len(out_df)} total tweets.")
+                    if viral_count > 0:
+                        with st.expander("Show Viral Tweets"):
+                            for text in viral_tweets["text"]:
+                                st.markdown(f"- {text}")
+                
+                # Collapsed drift column section, only showing if there is drift data
+                if "drift" in out_df.columns and out_df["drift"].astype(str).str.strip().str.len().sum() > 0:
+                    with st.expander("⚠️ View Drift Warnings"):
+                        drift_df = out_df[out_df["drift"].astype(str).str.strip() != ""][["text", "drift"]]
+                        st.dataframe(drift_df, width="stretch")
+
                 csv_bytes = out_df.to_csv(index=False).encode("utf-8")
                 st.download_button("Download CSV", data=csv_bytes, file_name="virality_predictions.csv", mime="text/csv")
