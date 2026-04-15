@@ -158,8 +158,19 @@ def load_model(path: Path) -> Optional[Dict[str, Any]]:
         p = p / "virality_model.joblib"
     if not p.exists():
         return None
-    bundle = joblib.load(p)
-    return bundle
+        
+    try:
+        bundle = joblib.load(p)
+        return bundle
+    except Exception as e:
+        import streamlit as st
+        st.error(f"Failed to load local model (likely a Numba/Python 3.13 serialization bug). Falling back to heuristic. Error: {str(e)[:100]}...")
+        # Automatically delete the corrupted file so it doesn't crash the app repeatedly
+        try:
+            p.unlink()
+        except:
+            pass
+        return None
 
 def predict_virality(
     texts: List[str],
