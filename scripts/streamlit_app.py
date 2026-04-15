@@ -99,14 +99,14 @@ with tabs[1]:
             daily = dff.set_index("created_at").resample("D").size().rename("count").reset_index()
             import plotly.express as px
             fig = px.bar(daily, x="created_at", y="count", title="Tweets per day")
-            st.plotly_chart(fig, width="stretch", config={"responsive": True})
+            st.plotly_chart(fig, use_container_width=True, config={"responsive": True})
             import re
             hashtags = dff["text"].str.findall(r"#\w+").explode().dropna()
             if not hashtags.empty:
                 top_ht = hashtags.value_counts().head(20).reset_index()
                 top_ht.columns = ["hashtag", "count"]
                 fig2 = px.bar(top_ht, x="hashtag", y="count", title="Top hashtags")
-                st.plotly_chart(fig2, width="stretch", config={"responsive": True})
+                st.plotly_chart(fig2, use_container_width=True, config={"responsive": True})
         else:
             st.warning("No data in the selected window")
     else:
@@ -143,17 +143,17 @@ with tabs[2]:
                     st.dataframe(info, width="stretch")
                     try:
                         fig_bar = model.visualize_barchart(top_n_topics=10)
-                        st.plotly_chart(fig_bar, width="stretch", config={"responsive": True})
+                        st.plotly_chart(fig_bar, use_container_width=True, config={"responsive": True})
                     except Exception:
                         pass
                     try:
                         fig_docs = model.visualize_documents(texts, hide_annotations=True)
-                        st.plotly_chart(fig_docs, width="stretch", config={"responsive": True})
+                        st.plotly_chart(fig_docs, use_container_width=True, config={"responsive": True})
                     except Exception:
                         pass
                     try:
                         fig_h = model.visualize_hierarchy()
-                        st.plotly_chart(fig_h, width="stretch", config={"responsive": True})
+                        st.plotly_chart(fig_h, use_container_width=True, config={"responsive": True})
                     except Exception:
                         pass
                     if isinstance(probs, np.ndarray) and probs.size > 0 and probs.ndim == 2 and probs.shape[1] > 0:
@@ -181,7 +181,7 @@ with tabs[3]:
                 top_users.columns = ["user", "count"]
                 import plotly.express as px
                 fig = px.bar(top_users, x="user", y="count", title="Top users by tweet count")
-                st.plotly_chart(fig, width="stretch", config={"responsive": True})
+                st.plotly_chart(fig, use_container_width=True, config={"responsive": True})
             else:
                 st.warning("No data in the selected window")
         else:
