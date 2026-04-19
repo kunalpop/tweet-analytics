@@ -99,14 +99,14 @@ with tabs[1]:
             daily = dff.set_index("created_at").resample("D").size().rename("count").reset_index()
             import plotly.express as px
             fig = px.bar(daily, x="created_at", y="count", title="Tweets per day")
-            st.plotly_chart(fig, width="stretch", config={"responsive": True})
+            st.plotly_chart(fig, use_container_width=True, config={"responsive": True})
             import re
             hashtags = dff["text"].str.findall(r"#\w+").explode().dropna()
             if not hashtags.empty:
                 top_ht = hashtags.value_counts().head(20).reset_index()
                 top_ht.columns = ["hashtag", "count"]
                 fig2 = px.bar(top_ht, x="hashtag", y="count", title="Top hashtags")
-                st.plotly_chart(fig2, width="stretch", config={"responsive": True})
+                st.plotly_chart(fig2, use_container_width=True, config={"responsive": True})
         else:
             st.warning("No data in the selected window")
     else:
@@ -143,17 +143,17 @@ with tabs[2]:
                     st.dataframe(info, width="stretch")
                     try:
                         fig_bar = model.visualize_barchart(top_n_topics=10)
-                        st.plotly_chart(fig_bar, width="stretch", config={"responsive": True})
+                        st.plotly_chart(fig_bar, use_container_width=True, config={"responsive": True})
                     except Exception:
                         pass
                     try:
                         fig_docs = model.visualize_documents(texts, hide_annotations=True)
-                        st.plotly_chart(fig_docs, width="stretch", config={"responsive": True})
+                        st.plotly_chart(fig_docs, use_container_width=True, config={"responsive": True})
                     except Exception:
                         pass
                     try:
                         fig_h = model.visualize_hierarchy()
-                        st.plotly_chart(fig_h, width="stretch", config={"responsive": True})
+                        st.plotly_chart(fig_h, use_container_width=True, config={"responsive": True})
                     except Exception:
                         pass
                     if isinstance(probs, np.ndarray) and probs.size > 0 and probs.ndim == 2 and probs.shape[1] > 0:
@@ -181,7 +181,7 @@ with tabs[3]:
                 top_users.columns = ["user", "count"]
                 import plotly.express as px
                 fig = px.bar(top_users, x="user", y="count", title="Top users by tweet count")
-                st.plotly_chart(fig, width="stretch", config={"responsive": True})
+                st.plotly_chart(fig, use_container_width=True, config={"responsive": True})
             else:
                 st.warning("No data in the selected window")
         else:
@@ -201,7 +201,74 @@ with tabs[0]:
         single_user = ""
         if input_mode == "Batch (CSV/JSON or paste)":
             uploader = st.file_uploader("Upload tweets (.csv or .json)", type=["csv", "json"])
-            text_input = st.text_area("Or paste tweets (one per line)", value="", height=120)
+            
+            if "batch_paste_text" not in st.session_state:
+                st.session_state.batch_paste_text = ""
+                
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                if st.button("✨ Load fixed samples"):
+                    sample_tweets = [
+                        "Just launched our new AI product! 🚀 It's going to revolutionize the way we work. #AI #Startup #Launch",
+                        "Can't believe we hit 10k MRR in just 3 months! Thank you to all our early adopters. 🙏 #SaaS #Milestone",
+                        "We are hiring! Looking for a 10x engineer to join our fast-growing team in Singapore. DM me for details.",
+                        "Hot take: Most marketing budgets are completely wasted on the wrong channels. Focus on organic growth instead.",
+                        "Our new feature is finally live! Check out the thread below for a deep dive into how we built it. 🧵👇"
+                    ]
+                    st.session_state.batch_paste_text = "\n".join(sample_tweets)
+                    st.rerun()
+                    
+            with col_btn2:
+                # Add LLM generation feature
+                import requests
+                import json
+                
+                # Check if Ollama is running locally and get models
+                ollama_url = "http://localhost:11434/api/generate"
+                available_models = []
+                try:
+                    tags_req = requests.get("http://localhost:11434/api/tags", timeout=2)
+                    if tags_req.status_code == 200:
+                        ollama_available = True
+                        available_models = [m["name"] for m in tags_req.json().get("models", [])]
+                    else:
+                        ollama_available = False
+                except:
+                    ollama_available = False
+                    
+                if ollama_available and available_models:
+                    selected_model = st.selectbox("Select local LLM model", options=available_models, label_visibility="collapsed")
+                    num_tweets = st.slider("Number of tweets to generate", min_value=5, max_value=100, value=5, step=5)
+                else:
+                    selected_model = "llama3"
+                    num_tweets = 5
+                    
+                if st.button("🤖 Generate via local LLM", disabled=not (ollama_available and available_models), help="Requires Ollama running locally with downloaded models" if not (ollama_available and available_models) else f"Generate {num_tweets} random tweets using {selected_model}"):
+                    with st.spinner(f"Generating {num_tweets} tweets with {selected_model}... (This may take a while)"):
+                        try:
+                            prompt = f"Generate {num_tweets} completely different and realistic tweets about technology, startups, or marketing. Include 1-3 relevant hashtags in each tweet. Do not include numbers or bullet points at the start of the lines. Just return the {num_tweets} tweets separated by newlines."
+                            payload = {
+                                "model": selected_model,
+                                "prompt": prompt,
+                                "stream": False,
+                                "options": {
+                                    "num_ctx": 4096 # Increase context window for large generations
+                                }
+                            }
+                            # Increase timeout to 3 minutes for generating 100 tweets
+                            response = requests.post(ollama_url, json=payload, timeout=180)
+                            if response.ok:
+                                generated_text = response.json().get("response", "")
+                                # Clean up potential LLM conversational fluff
+                                clean_lines = [line.strip() for line in generated_text.split('\n') if line.strip() and not line.startswith("Here")]
+                                st.session_state.batch_paste_text = "\n".join(clean_lines)
+                                st.rerun()
+                            else:
+                                st.error(f"Failed to generate tweets. Status: {response.status_code}, Error: {response.text}")
+                        except Exception as e:
+                            st.error(f"LLM Error: {e}")
+                
+            text_input = st.text_area("Or paste tweets (one per line)", key="batch_paste_text", height=120)
             st.caption("Accepted JSON: list of strings or objects with 'text'. Optional 'created_at'/'user'.")
         else:
             single_tweet_text = st.text_input("Tweet text", value="")
@@ -458,15 +525,37 @@ with tabs[0]:
                     out_df["is_viral"] = out_df["virality_score"] >= int(viral_threshold)
                 if "is_viral" in out_df.columns:
                     out_df["is_viral"] = out_df["is_viral"].map({True: "✅", False: "❌", 1: "✅", 0: "❌"}).fillna(out_df["is_viral"])
+                
                 st.subheader("Results")
-                st.dataframe(out_df, width="stretch")
+                
+                # Main dataframe without the drift and ensemble columns
+                display_cols = [c for c in out_df.columns if c not in ["drift", "ensemble"]]
+                st.dataframe(out_df[display_cols], width="stretch")
+
                 if 'raw_responses' in locals() and len(raw_responses) > 0:
-                    with st.expander("API responses"):
+                    with st.expander("🔌 View API Responses"):
                         for i, r in enumerate(raw_responses, start=1):
                             st.markdown(f"Response {i}")
                             try:
                                 st.json(r)
                             except Exception:
                                 st.write(r)
+                
+                # Viral tweets summary
+                if "is_viral" in out_df.columns:
+                    viral_tweets = out_df[out_df["is_viral"] == "✅"]
+                    viral_count = len(viral_tweets)
+                    st.success(f"🔥 Found **{viral_count}** potentially viral tweet{'s' if viral_count != 1 else ''} out of {len(out_df)} total tweets.")
+                    if viral_count > 0:
+                        with st.expander("Show Viral Tweets"):
+                            for text in viral_tweets["text"]:
+                                st.markdown(f"- {text}")
+                
+                # Collapsed drift column section, only showing if there is drift data
+                if "drift" in out_df.columns and out_df["drift"].astype(str).str.strip().str.len().sum() > 0:
+                    with st.expander("⚠️ View Drift Warnings"):
+                        drift_df = out_df[out_df["drift"].astype(str).str.strip() != ""][["text", "drift"]]
+                        st.dataframe(drift_df, width="stretch")
+
                 csv_bytes = out_df.to_csv(index=False).encode("utf-8")
                 st.download_button("Download CSV", data=csv_bytes, file_name="virality_predictions.csv", mime="text/csv")
